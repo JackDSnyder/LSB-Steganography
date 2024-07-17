@@ -1,1 +1,1 @@
-endDecode = "#END#"
+stopCode = "#END#"
