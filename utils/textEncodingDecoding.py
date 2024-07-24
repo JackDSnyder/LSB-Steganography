@@ -1,8 +1,12 @@
-from constants import stopCode
+from constants import stopCode, defaultPassword
 import helper
+
 from PIL import Image
 
-def encodeText(imageAddress, saveAddress, text):
+def encodeText(imageAddress, saveAddress, text, password):
+    if not password:
+        password = defaultPassword
+        
     # Open image in RGBA format in a list and copy the encoded image
     image = Image.open(imageAddress)
     rgbaImage = image.convert("RGBA")
@@ -10,10 +14,8 @@ def encodeText(imageAddress, saveAddress, text):
     newImagePixels = pixels.copy()
 
     # Change text to be encoded into its Ascii form
-    text += stopCode
-    textBits = ""
-    for char in text:
-        textBits += format(ord(char), '07b')
+    encryptedText = helper.encryptMessage(text, password)
+    textBits = helper.messageToAscii(str(encryptedText))
 
     # Modify original images RGB values' bits with the message
     for pixelIndex, pixel in enumerate(pixels):
@@ -21,9 +23,8 @@ def encodeText(imageAddress, saveAddress, text):
         if not textBits:
             break
         # Create new arrays of pixels to change values
-        newRGB = [[i for i in format(pixel[0], '08b')], 
-                  [i for i in format(pixel[1], '08b')], 
-                  [i for i in format(pixel[2], '08b')], pixel[3]]
+        newRGB = helper.pixelToBinLists(pixel)
+
         # For every pixel loop over all 3 rgb channels, 
         # changing all 8 values if the alpha channel is 0, and 3 if the alpha is more than 0
         for channel in range(3):
@@ -51,7 +52,10 @@ def encodeText(imageAddress, saveAddress, text):
 
 
 
-def decodeText(encodedImageAddress):
+def decodeText(encodedImageAddress, password):
+    if not password:
+        password = defaultPassword
+
     # Open image in RGBA format in a list
     image = Image.open(encodedImageAddress)
     rgbaImage = image.convert("RGBA")
@@ -62,44 +66,41 @@ def decodeText(encodedImageAddress):
     bits = ""
 
     for pixel in pixels:
-        binPixel = [[i for i in format(pixel[0], '08b')], 
-                    [i for i in format(pixel[1], '08b')], 
-                    [i for i in format(pixel[2], '08b')], pixel[3]]
-        if helper.checkForStopCode(message):
-            print(message[:-len(stopCode)])
-            return message[:-len(stopCode)]
+        binPixel = [helper.intToListOfBits(pixel[0]), 
+                    helper.intToListOfBits(pixel[1]), 
+                    helper.intToListOfBits(pixel[2]), pixel[3]]
         
         for channel in range(3):
             if pixel[3] > 0:
                 for i in range(2):
                     bits += binPixel[channel][-i-1]
-                    if len(bits) == 7:
+                    if len(bits) == 8:
                         message += helper.binStringToChar(bits)
                         bits = ""
                         if helper.checkForStopCode(message):
-                            print(message[:-len(stopCode)])
-                            return message[:-len(stopCode)]
+                            message = message[:-len(stopCode)]
+                            byteData = message.encode('latin1').decode('unicode_escape').encode('latin1')
+                            return helper.decryptMessage(byteData, password)
+                            
             else:
                 for i in range(8):
                     bits += binPixel[channel][-i-1]
-                    if len(bits) == 7:
+                    if len(bits) == 8:
                         message += helper.binStringToChar(bits)
                         bits = ""
                         if helper.checkForStopCode(message):
-                            print(message[:-len(stopCode)])
-                            return message[:-len(stopCode)]
+                            message = message[:-len(stopCode)]
+                            byteData = message.encode('latin1').decode('unicode_escape').encode('latin1')
+                            return helper.decryptMessage(byteData, password)
 
         
         
-
-
-            
 
 
 def main():
     encodeText("utils/sample.png", "utils/encodedText.png", 
-               "The big bad man thought he could see this message but he can't")
-    decodeText("utils/encodedText.png")
+               "The big bad man thought he could see this message but he can't", "python")
+    print(decodeText("utils/encodedText.png", "python"))
     
 
 
