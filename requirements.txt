@@ -1,3 +1,5 @@
 Python3
 PIL library
+pycryptodome library
+numpy library
 Only use png images
