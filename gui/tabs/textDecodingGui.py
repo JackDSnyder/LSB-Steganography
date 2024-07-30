@@ -5,6 +5,6 @@ from tkinter import ttk
 import customtkinter as ctk
 from utils.textEncodingDecoding import decodeText
 
-def createTextDecodingTab(notebook):
-    textDecodingTab = ttk.Frame(notebook)
-    notebook.add(textDecodingTab, text="Decode Text")
+def createTextDecodingTab(tabview):
+    textDecodingTab = ctk.CTkFrame(master=tabview.tab("Decode Text"))
+    textDecodingTab.pack()

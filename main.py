@@ -1,8 +1,8 @@
-from tkinter import Tk
+import customtkinter as ctk
 from gui.mainGUI import MainWindow
 
 def main():
-    root = Tk()
+    root = ctk.CTk()
     app = MainWindow(root)
     root.mainloop()
 

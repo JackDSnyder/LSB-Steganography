@@ -5,6 +5,6 @@ from tkinter import ttk
 import customtkinter as ctk
 from utils.imageEncodingDecoding import encodeImage
 
-def createImageEncodingTab(notebook):
-    ImageEncodingTab = ttk.Frame(notebook)
-    notebook.add(ImageEncodingTab, text="Encode Images")
+def createImageEncodingTab(tabview):
+    imageEncodingTab = ctk.CTkFrame(master=tabview.tab("Encode Image"))
+    imageEncodingTab.pack()
