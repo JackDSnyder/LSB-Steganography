@@ -1,5 +1,6 @@
-Python3
+Latest python version
 PIL library
 pycryptodome library
 numpy library
-Only use png images
+tkinter library
+customtkinter library

@@ -1,5 +1,5 @@
-from constants import stopCode, defaultPassword
-import helper
+from utils.constants import stopCode, defaultPassword
+import utils.helper as helper
 
 from PIL import Image
 
@@ -97,12 +97,12 @@ def decodeText(encodedImageAddress, password):
         
 
 
-def main():
-    encodeText("utils/sample.png", "utils/encodedText.png", 
-               "The big bad man thought he could see this message but he can't", "python")
-    print(decodeText("utils/encodedText.png", "python"))
+# def main():
+#     encodeText("utils/sample.png", "utils/encodedText.png", 
+#                "The big bad man thought he could see this message but he can't", "python")
+#     print(decodeText("utils/encodedText.png", "python"))
     
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()

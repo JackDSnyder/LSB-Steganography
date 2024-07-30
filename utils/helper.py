@@ -1,4 +1,4 @@
-from constants import stopCode, defaultPassword
+from utils.constants import stopCode, defaultPassword
 from PIL import Image
 import numpy as np
 from Crypto.Cipher import AES
