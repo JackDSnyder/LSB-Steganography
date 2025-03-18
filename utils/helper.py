@@ -1,9 +1,10 @@
-from constants import stopCode, defaultPassword
+from utils.constants import stopCode, defaultPassword
 from PIL import Image
 import numpy as np
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 from Crypto.Random import get_random_bytes
+
 import hashlib
 
 ##############################################################

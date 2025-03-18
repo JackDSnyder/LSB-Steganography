@@ -1,5 +1,5 @@
-from constants import defaultPassword
-import helper
+from utils.constants import defaultPassword
+import utils.helper as helper
 
 from PIL import Image
 import numpy as np
@@ -106,11 +106,11 @@ def decodeImage(encodedImageAddress, saveAddress, password):
 
 
 
-def main():
-    encodeImage("utils/sample.png", "utils/sample3.png", "utils/encodedImage.png", "python")
-    decodeImage("utils/encodedImage.png", "utils/decodedImage.png", "python")
+# def main():
+#     encodeImage("sample2.png", "sample.png", "encodedImage.png", "python")
+#     decodeImage("encodedImage.png", "assets/decodedImage.png", "python")
     
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
