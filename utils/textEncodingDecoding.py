@@ -98,9 +98,9 @@ def decodeText(encodedImageAddress, password):
 
 
 # def main():
-#     encodeText("utils/sample.png", "utils/encodedText.png", 
+#     encodeText("assets/sample.png", "assets/encodedText.png", 
 #                "The big bad man thought he could see this message but he can't", "python")
-#     print(decodeText("utils/encodedText.png", "python"))
+#     print(decodeText("assets/encodedText.png", "python"))
     
 
 

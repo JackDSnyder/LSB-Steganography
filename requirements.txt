@@ -1,6 +1,0 @@
-Latest python version
-PIL library
-pycryptodome library
-numpy library
-tkinter library
-customtkinter library

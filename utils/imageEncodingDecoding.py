@@ -107,8 +107,8 @@ def decodeImage(encodedImageAddress, saveAddress, password):
 
 
 # def main():
-#     encodeImage("utils/sample.png", "utils/sample3.png", "utils/encodedImage.png", "python")
-#     decodeImage("utils/encodedImage.png", "utils/decodedImage.png", "python")
+#     encodeImage("sample2.png", "sample.png", "encodedImage.png", "python")
+#     decodeImage("encodedImage.png", "assets/decodedImage.png", "python")
     
 
 
