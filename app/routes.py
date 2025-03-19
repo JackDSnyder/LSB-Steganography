@@ -3,6 +3,7 @@ from werkzeug.utils import secure_filename
 import os
 from app.utils import textEncodingDecoding, imageEncodingDecoding
 from app.utils.constants import defaultPassword
+from io import BytesIO
 
 bp = Blueprint('main', __name__)
 
@@ -18,97 +19,118 @@ def index():
 
 @bp.route('/encode-text', methods=['POST'])
 def encode_text():
-    if 'image' not in request.files or 'text' not in request.form:
-        return jsonify({'error': 'Missing required fields'}), 400
-    
-    file = request.files['image']
-    text = request.form['text']
-    password = request.form.get('password', defaultPassword)
-    
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-        
-    if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        input_path = os.path.join(UPLOAD_FOLDER, filename)
-        output_path = os.path.join(UPLOAD_FOLDER, f'encoded_{filename}')
-        
-        file.save(input_path)
-        textEncodingDecoding.encodeText(input_path, output_path, text, password)
-        
-        return jsonify({'success': True, 'output_file': f'encoded_{filename}'})
-    
-    return jsonify({'error': 'Invalid file type'}), 400
+    try:
+        # Get form data
+        image = request.files['image']
+        text = request.form['text']
+        password = request.form.get('password', '')
+
+        # Read image data into memory
+        image_data = BytesIO(image.read())
+        output_data = BytesIO()
+
+        # Encode text in image
+        textEncodingDecoding.encodeText(image_data, text, output_data, password)
+        output_data.seek(0)
+
+        # Send the encoded image directly
+        return send_file(
+            output_data,
+            mimetype='image/png',
+            as_attachment=True,
+            download_name='encoded_image.png'
+        )
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
 
 @bp.route('/decode-text', methods=['POST'])
 def decode_text():
-    if 'image' not in request.files:
-        return jsonify({'error': 'Missing image file'}), 400
-    
-    file = request.files['image']
-    password = request.form.get('password', defaultPassword)
-    
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
+    try:
+        print("Received decode-text request")
+        print("Files:", request.files)
+        print("Form data:", request.form)
         
-    if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        file_path = os.path.join(UPLOAD_FOLDER, filename)
-        file.save(file_path)
+        # Get form data
+        if 'image' not in request.files:
+            print("No image file in request")
+            return jsonify({'error': 'No image file provided'}), 400
+            
+        image = request.files['image']
+        if image.filename == '':
+            print("No selected file")
+            return jsonify({'error': 'No selected file'}), 400
+            
+        password = request.form.get('password', '')
+        print(f"Processing image: {image.filename}, password: {password}")
+
+        # Read image data into memory
+        image_data = BytesIO(image.read())
+
+        # Decode text from image
+        text = textEncodingDecoding.decodeText(image_data, password)
         
-        decoded_text = textEncodingDecoding.decodeText(file_path, password)
-        return jsonify({'success': True, 'text': decoded_text})
-    
-    return jsonify({'error': 'Invalid file type'}), 400
+        if text == "Incorrect passcode.":
+            return jsonify({'error': 'Incorrect password. Please try again.'}), 400
+        elif text == '':
+            return jsonify({'error': 'No text found in the image.'}), 400
+        else:
+            return jsonify({'text': text})
+
+    except Exception as e:
+        print(f"Decoding error: {str(e)}")  # Log the error for debugging
+        return jsonify({'error': str(e)}), 400
 
 @bp.route('/encode-image', methods=['POST'])
 def encode_image():
-    if 'original' not in request.files or 'hidden' not in request.files:
-        return jsonify({'error': 'Missing required files'}), 400
-    
-    original = request.files['original']
-    hidden = request.files['hidden']
-    password = request.form.get('password', defaultPassword)
-    
-    if original.filename == '' or hidden.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-        
-    if original and hidden and allowed_file(original.filename) and allowed_file(hidden.filename):
-        original_filename = secure_filename(original.filename)
-        hidden_filename = secure_filename(hidden.filename)
-        
-        original_path = os.path.join(UPLOAD_FOLDER, original_filename)
-        hidden_path = os.path.join(UPLOAD_FOLDER, hidden_filename)
-        output_path = os.path.join(UPLOAD_FOLDER, f'encoded_{original_filename}')
-        
-        original.save(original_path)
-        hidden.save(hidden_path)
-        
-        imageEncodingDecoding.encodeImage(original_path, hidden_path, output_path, password)
-        
-        return jsonify({'success': True, 'output_file': f'encoded_{original_filename}'})
-    
-    return jsonify({'error': 'Invalid file type'}), 400
+    try:
+        # Get form data
+        original_image = request.files['original']
+        hidden_image = request.files['hidden']
+        password = request.form.get('password', '')
+
+        # Read image data into memory
+        original_data = BytesIO(original_image.read())
+        hidden_data = BytesIO(hidden_image.read())
+        output_data = BytesIO()
+
+        # Encode hidden image in original image
+        imageEncodingDecoding.encodeImage(original_data, hidden_data, output_data, password)
+        output_data.seek(0)
+
+        # Send the encoded image directly
+        return send_file(
+            output_data,
+            mimetype='image/png',
+            as_attachment=True,
+            download_name='encoded_image.png'
+        )
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
 
 @bp.route('/decode-image', methods=['POST'])
 def decode_image():
-    if 'image' not in request.files:
-        return jsonify({'error': 'Missing image file'}), 400
-    
-    file = request.files['image']
-    password = request.form.get('password', defaultPassword)
-    
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-        
-    if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        input_path = os.path.join(UPLOAD_FOLDER, filename)
-        output_path = os.path.join(UPLOAD_FOLDER, f'decoded_{filename}')
-        
-        file.save(input_path)
-        imageEncodingDecoding.decodeImage(input_path, output_path, password)
-        
-        return jsonify({'success': True, 'output_file': f'decoded_{filename}'})
-    
-    return jsonify({'error': 'Invalid file type'}), 400 
+    try:
+        # Get form data
+        encoded_image = request.files['image']
+        password = request.form.get('password', '')
+
+        # Read image data into memory
+        encoded_data = BytesIO(encoded_image.read())
+        output_data = BytesIO()
+
+        # Decode hidden image
+        imageEncodingDecoding.decodeImage(encoded_data, output_data, password)
+        output_data.seek(0)
+
+        # Send the decoded image directly
+        return send_file(
+            output_data,
+            mimetype='image/png',
+            as_attachment=True,
+            download_name='decoded_image.png'
+        )
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400 

@@ -3,14 +3,15 @@ from . import helper
 
 from PIL import Image
 import numpy as np
+from io import BytesIO
 
-def encodeImage(originalImageAddress, hiddenImageAddress, saveAddress, password):
+def encodeImage(originalImageIO, hiddenImageIO, outputIO, password):
     if not password:
         password = defaultPassword
 
     # Pad the hidden image to fit the dimensions of the original image and open the original image normally
-    hiddenImage = helper.padImage(originalImageAddress, hiddenImageAddress)
-    originalImage = Image.open(originalImageAddress)
+    hiddenImage = helper.padImage(originalImageIO, hiddenImageIO)
+    originalImage = Image.open(originalImageIO)
 
     # Open both images in RGBA format in a list and copy the encoded image
     rgbaOriginalImage = originalImage.convert("RGBA")
@@ -57,16 +58,15 @@ def encodeImage(originalImageAddress, hiddenImageAddress, saveAddress, password)
                 newImagePixels[pixelRow, pixelCol] = newPixel
 
     newImage = Image.fromarray(newImagePixels.astype('uint8'), 'RGBA')
-    newImage.save(saveAddress)
-            
+    newImage.save(outputIO, format='PNG')
+    return True
 
-
-def decodeImage(encodedImageAddress, saveAddress, password):
+def decodeImage(encodedImageIO, outputIO, password):
     if not password:
         password = defaultPassword
 
     # Open the encoded image in RGBA format
-    encodedImage = Image.open(encodedImageAddress)
+    encodedImage = Image.open(encodedImageIO)
     rgbaEncodedImage = encodedImage.convert("RGBA")
     imageWidth, imageHeight = rgbaEncodedImage.size
 
@@ -134,7 +134,8 @@ def decodeImage(encodedImageAddress, saveAddress, password):
 
     # Save new decoded image
     newImage = Image.fromarray(decodedImagePixels.astype('uint8'), 'RGBA')
-    newImage.save(saveAddress)
+    newImage.save(outputIO, format='PNG')
+    return True
 
         
 

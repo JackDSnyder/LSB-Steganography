@@ -2,107 +2,92 @@ from .constants import stopCode, defaultPassword
 from . import helper
 
 from PIL import Image
+import numpy as np
+from io import BytesIO
 
-def encodeText(imageAddress, saveAddress, text, password):
-    if not password:
-        password = defaultPassword
-        
-    # Open image in RGBA format in a list and copy the encoded image
-    image = Image.open(imageAddress)
-    rgbaImage = image.convert("RGBA")
-    pixels = list(rgbaImage.getdata())
-    newImagePixels = pixels.copy()
-
-    # Change text to be encoded into its Ascii form
-    encryptedText = helper.encryptMessage(text, password)
-    textBits = helper.messageToAscii(str(encryptedText))
-
-    # Modify original images RGB values' bits with the message
-    for pixelIndex, pixel in enumerate(pixels):
-        # If there is more to be encoded, continue, otherwise, stop
-        if not textBits:
-            break
-        # Create new arrays of pixels to change values
-        newRGB = helper.pixelToBinLists(pixel)
-
-        # For every pixel loop over all 3 rgb channels, 
-        # changing all 8 values if the alpha channel is 0, and 3 if the alpha is more than 0
-        for channel in range(3):
-            if pixel[3] > 0:
-                for i in range(2):
-                    if textBits:
-                        newRGB[channel][-i-1] = textBits[0]
-                        textBits = textBits[1:]
-            else:
-                for i in range(8):
-                    if textBits:
-                        newRGB[channel][-i-1] = textBits[0]
-                        textBits = textBits[1:]
-        
-        # Replace original pixel with encoded one
-        newPixel = (helper.binListToInt(newRGB[0]), 
-                    helper.binListToInt(newRGB[1]), 
-                    helper.binListToInt(newRGB[2]), pixel[3])
-        newImagePixels[pixelIndex] = newPixel
-
-    # Save new encoded image
-    newImage = Image.new("RGBA", rgbaImage.size)
-    newImage.putdata(newImagePixels)
-    newImage.save(saveAddress)
-
-
-
-def decodeText(encodedImageAddress, password):
+def encodeText(originalImageIO, text, outputIO, password):
     if not password:
         password = defaultPassword
 
-    # Open image in RGBA format in a list
-    image = Image.open(encodedImageAddress)
-    rgbaImage = image.convert("RGBA")
-    pixels = list(rgbaImage.getdata())
-
-    # Variables to keep track of message and bits
-    message = ""
-    bits = ""
-
-    for pixel in pixels:
-        binPixel = [helper.intToListOfBits(pixel[0]), 
-                    helper.intToListOfBits(pixel[1]), 
-                    helper.intToListOfBits(pixel[2]), pixel[3]]
-        
-        for channel in range(3):
-            if pixel[3] > 0:
-                for i in range(2):
-                    bits += binPixel[channel][-i-1]
-                    if len(bits) == 8:
-                        message += helper.binStringToChar(bits)
-                        bits = ""
-                        if helper.checkForStopCode(message):
-                            message = message[:-len(stopCode)]
-                            byteData = message.encode('latin1').decode('unicode_escape').encode('latin1')
-                            return helper.decryptMessage(byteData, password)
-                            
-            else:
-                for i in range(8):
-                    bits += binPixel[channel][-i-1]
-                    if len(bits) == 8:
-                        message += helper.binStringToChar(bits)
-                        bits = ""
-                        if helper.checkForStopCode(message):
-                            message = message[:-len(stopCode)]
-                            byteData = message.encode('latin1').decode('unicode_escape').encode('latin1')
-                            return helper.decryptMessage(byteData, password)
-
-        
-        
-
-
-# def main():
-#     encodeText("assets/sample.png", "assets/encodedText.png", 
-#                "The big bad man thought he could see this message but he can't", "python")
-#     print(decodeText("assets/encodedText.png", "python"))
+    # Encrypt the text first
+    encrypted_text = helper.encryptMessage(text, password)
     
+    # Convert encrypted text to binary
+    textBinary = ''
+    for byte in encrypted_text:
+        textBinary += format(byte, '08b')
+    textBinary += '00000000'  # Add null terminator
 
+    # Open the original image
+    originalImage = Image.open(originalImageIO)
+    rgbaOriginalImage = originalImage.convert("RGBA")
+    originalWidth, originalHeight = rgbaOriginalImage.size
 
-# if __name__ == "__main__":
-#     main()
+    # Convert image to numpy array
+    originalImagePixels = np.array(rgbaOriginalImage.getdata(), dtype=np.uint8).reshape((originalHeight, originalWidth, 4))
+    newImagePixels = originalImagePixels.copy()
+
+    # Encode text in the image
+    textIndex = 0
+    for pixelRow in range(originalHeight):
+        for pixelCol in range(originalWidth):
+            if textIndex >= len(textBinary):
+                break
+
+            originalPixel = originalImagePixels[pixelRow, pixelCol]
+            newRGB = helper.pixelToBinLists(originalPixel)
+
+            # Modify the least significant bits with text data
+            for channel in range(3):
+                if textIndex < len(textBinary):
+                    newRGB[channel][-1] = textBinary[textIndex]
+                    textIndex += 1
+
+            # Replace original pixel with encoded one
+            newPixel = (helper.binListToInt(newRGB[0]), 
+                        helper.binListToInt(newRGB[1]), 
+                        helper.binListToInt(newRGB[2]), originalPixel[3])
+            newImagePixels[pixelRow, pixelCol] = newPixel
+
+    # Save the encoded image
+    newImage = Image.fromarray(newImagePixels.astype('uint8'), 'RGBA')
+    newImage.save(outputIO, format='PNG')
+    return True
+
+def decodeText(encodedImageIO, password):
+    if not password:
+        password = defaultPassword
+
+    # Open the encoded image
+    encodedImage = Image.open(encodedImageIO)
+    rgbaEncodedImage = encodedImage.convert("RGBA")
+    imageWidth, imageHeight = rgbaEncodedImage.size
+
+    # Convert image to numpy array
+    encodedImagePixels = np.array(rgbaEncodedImage.getdata(), dtype=np.uint8).reshape((imageHeight, imageWidth, 4))
+
+    # Extract binary data
+    binaryData = ''
+    for pixel in encodedImagePixels.reshape(-1, 4):
+        for channel in range(3):
+            binaryData += format(pixel[channel], '08b')[-1]
+            if len(binaryData) % 8 == 0:
+                char = chr(int(binaryData[-8:], 2))
+                if char == '\0':  # Null terminator
+                    # Convert binary data to bytes
+                    encrypted_bytes = bytes()
+                    for i in range(0, len(binaryData)-8, 8):
+                        byte = int(binaryData[i:i+8], 2)
+                        encrypted_bytes += bytes([byte])
+                    
+                    try:
+                        # Decrypt the text
+                        decrypted_text = helper.decryptMessage(encrypted_bytes, password)
+                        if decrypted_text == "Incorrect passcode.":
+                            return "Error: Incorrect password. Please try again."
+                        return decrypted_text
+                    except Exception as e:
+                        print(f"Decryption error: {str(e)}")
+                        return "Error: Failed to decrypt message. Please check your password."
+
+    return ''  # Return empty string if no null terminator found

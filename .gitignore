@@ -2,19 +2,13 @@
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Project specific
-samples/
+*.so
 
 # Distribution / packaging
 dist/
 build/
 *.egg-info/
-
-# Virtual environment
-venv/
-env/
-.env/
+*.egg
 
 # IDE specific
 .vscode/
@@ -29,4 +23,14 @@ env/
 .Spotlight-V100
 .Trashes
 ehthumbs.db
-Thumbs.db 
+Thumbs.db
+
+# Images
+*.png
+*.jpg
+*.jpeg
+*.gif
+!images/*.png
+!images/*.jpg
+!images/*.jpeg
+!images/*.gif 

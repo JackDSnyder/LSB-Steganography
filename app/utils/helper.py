@@ -4,8 +4,8 @@ import numpy as np
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 from Crypto.Random import get_random_bytes
-
 import hashlib
+from io import BytesIO
 
 ##############################################################
 # Helper functions for encoding and decoding images and text #
@@ -37,27 +37,31 @@ def intToListOfBits(num: int) -> list:
 
 # Converts a pixels RGB data into binary lists
 def pixelToBinLists(pixel: list) -> list:
-    return [intToListOfBits(pixel[0]),
-            intToListOfBits(pixel[1]),
-            intToListOfBits(pixel[2])]
+    return [[i for i in format(pixel[0], '08b')], 
+            [i for i in format(pixel[1], '08b')], 
+            [i for i in format(pixel[2], '08b')]]
 
 # Returns whether the stopcode is in a string
 def checkForStopCode(str1: str) -> bool:
     return stopCode in str1
 
 # Pad a hidden image to fit the dimensions of the original image
-def padImage(originalImagePath: str, hiddenImagePath: str) -> Image:
-    originalImage = Image.open(originalImagePath)
+def padImage(originalImageIO, hiddenImageIO):
+    # Open both images
+    originalImage = Image.open(originalImageIO)
+    hiddenImage = Image.open(hiddenImageIO)
+
+    # Get dimensions
     originalWidth, originalHeight = originalImage.size
-    hiddenImage = Image.open(hiddenImagePath)
+    hiddenWidth, hiddenHeight = hiddenImage.size
 
-    # Create a black image with the dimensions of the original image
-    newImage = Image.new('RGB', (originalWidth, originalHeight), (0, 0, 0, 0))
-    # Paste the hidden image onto the new image
-    newImage.paste(hiddenImage, (0, 0))
+    # Create a new image with the same dimensions as the original
+    paddedImage = Image.new('RGBA', (originalWidth, originalHeight), (0, 0, 0, 0))
 
-    # Return the new image
-    return newImage
+    # Paste the hidden image in the top-left corner
+    paddedImage.paste(hiddenImage, (0, 0))
+
+    return paddedImage
 
 
 
@@ -71,47 +75,29 @@ def padImage(originalImagePath: str, hiddenImagePath: str) -> Image:
 
 # Returns a byte object representing the SHA-256 hash of the password
 def deriveTextKey(password: str) -> bytes:
-    # .encode() first encodes the password into bytes
-    # Then .sha256() returns the SHA-256 hash object of the encoded password bytes
-    # Lastly, .digest() retrieves the hash value from the hash object as a bytes object
+    # Create a hash of the password to use as a key for encryption
+    if not password:
+        password = defaultPassword
     return hashlib.sha256(password.encode()).digest()
 
 def encryptMessage(message: str, password: str) -> bytes:
     key = deriveTextKey(password)
-
-    # AES.new() creates a cipher object is an instance of an encryption algorithm that can encrypt and decrypt
-    # CBC is Cipher Block Chaining mode which takes each 16 byte data block from the AES algorithm and chains them together by XORing them together
     cipher = AES.new(key, AES.MODE_CBC)
-
-    # An iv (initialization vector) is a pseudo-random value that ensures that the same text encrypted multiple times with the same key
-    # will produce different cyphertexts each time, introducing randomness in the encryption process adding another layer of security
     iv = cipher.iv
-
-    # First the message is converted to bytes using encode, then pad() pads the encoded message to fit in 16byte block sizes to work with the AES algorithm
-    # Lastly, .encrypt() uses our cipher object to encrypt the padded message
     encryptedMessage = cipher.encrypt(pad(message.encode(), AES.block_size))
-
-    # Concatenates the iv and encrypted message because the iv is needed for deryption. Returns a bytes object containing both thte message and iv
     return iv + encryptedMessage
 
 def decryptMessage(encryptedMessage: bytes, password: str) -> str:
     key = deriveTextKey(password)
-
-    # Extracts the iv from the encrypted message
     iv = encryptedMessage[:AES.block_size]
 
     if isinstance(iv, str):
         iv = iv.encode()
 
-    # Creates a cypher object with the iv for decryption
     cipher = AES.new(key, AES.MODE_CBC, iv)
 
     try:
-        # First, the iv is sliced out of the encrypted message
-        # Second, the message is decrypted using the cypher containing the iv
-        # Lastly, we unpad the message since it was padded to encrypt the message
         decryptedMessage = unpad(cipher.decrypt(encryptedMessage[AES.block_size:]), AES.block_size)
-        # The decrypted message is in bytes so it is decoded and then returned back as a string
         return decryptedMessage.decode()
     except:
         return "Incorrect passcode."
@@ -121,43 +107,62 @@ def decryptMessage(encryptedMessage: bytes, password: str) -> str:
 # Image Encryption and Decryption #
 ###################################
 
-def deriveImageKey(password: str) -> int:
-    # First, the password is encoded into bytes, then uses the bytes to compute the SHA-256 hash
-    # Next, the hash is is converted to a string of hexadecimal digits.
-    # Lastly, the hexadecimal string is evaluated as an integer and returned
-    hashInt =  int(hashlib.sha256(password.encode()).hexdigest(), 16)
-    return hashInt % (2**32)
+def deriveImageKey(password):
+    # Create a hash of the password to use as a key for shuffling
+    if not password:
+        password = defaultPassword
+    return int.from_bytes(hashlib.sha256(password.encode()).digest()[:4], byteorder='big')
 
-def shufflePixels(image: np.ndarray, key: int) -> np.ndarray:
+def shufflePixels(pixels, key):
+    # Create a copy of the pixels array to avoid modifying the original
+    shuffled = pixels.copy()
+    
+    # Use the key to generate a deterministic but random-looking sequence
     np.random.seed(key)
-
-    # Reshapes the image, -1 is a placeholder to have the size of the dimension
-    # image.shape[2] is 4 because each pixels values are stored in RGBA format
-    flatImage = image.reshape(-1, image.shape[2])
-
-    # The image is shuffled randomly using random seeded previously by the key
-    np.random.shuffle(flatImage)
-
-    # The image is reshaped and returned
-    return flatImage.reshape(image.shape)
-
-def unshufflePixels(image: np.ndarray, key:int) -> np.ndarray:
-    np.random.seed(key)
-
-    # Reshapes the image just as shufflePixels does
-    flatImage = image.reshape(-1, image.shape[2])
-
-    # Creates an array of indices ranging from 0 to the amount of pixels-1
-    indices = np.arange(flatImage.shape[0])
-
-    # Uses the seeded random to shuffle the indices
+    
+    # Get the shape of the array
+    height, width = pixels.shape[:2]
+    
+    # Create a list of all pixel indices
+    indices = np.arange(height * width)
+    
+    # Shuffle the indices
     np.random.shuffle(indices)
+    
+    # Reshape the indices back to 2D
+    indices = indices.reshape(height, width)
+    
+    # Apply the shuffle to each channel
+    for i in range(pixels.shape[2]):
+        shuffled[:, :, i] = pixels[:, :, i].flatten()[indices].reshape(height, width)
+    
+    return shuffled
 
-    # Creates an array with the same shape as the flat image to store the unshuffled pixels
-    originalImage = np.empty_like(flatImage)
-
-    # Assigns the shuffled pixels back to their original positions
-    originalImage[indices] = flatImage
-
-    # Reshapes the array back to its original shape
-    return originalImage.reshape(image.shape)
+def unshufflePixels(pixels, key):
+    # Create a copy of the pixels array to avoid modifying the original
+    unshuffled = pixels.copy()
+    
+    # Use the key to generate the same sequence as in shufflePixels
+    np.random.seed(key)
+    
+    # Get the shape of the array
+    height, width = pixels.shape[:2]
+    
+    # Create a list of all pixel indices
+    indices = np.arange(height * width)
+    
+    # Shuffle the indices
+    np.random.shuffle(indices)
+    
+    # Create the inverse permutation
+    inverse_indices = np.zeros_like(indices)
+    inverse_indices[indices] = np.arange(len(indices))
+    
+    # Reshape the inverse indices back to 2D
+    inverse_indices = inverse_indices.reshape(height, width)
+    
+    # Apply the inverse shuffle to each channel
+    for i in range(pixels.shape[2]):
+        unshuffled[:, :, i] = pixels[:, :, i].flatten()[inverse_indices].reshape(height, width)
+    
+    return unshuffled

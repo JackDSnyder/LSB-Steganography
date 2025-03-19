@@ -1,60 +1,12 @@
-from flask import Flask, render_template, request, jsonify
-import os
+from flask import Flask, render_template, request, jsonify, send_file
 from werkzeug.utils import secure_filename
 from textEncodingDecoding import encodeText, decodeText
 from imageEncodingDecoding import encodeImage, decodeImage
 from helper import padImage
-import time
-import glob
+from io import BytesIO
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
-app.config['TEMP_FOLDER'] = 'static/temp'
-app.config['MAX_AGE'] = 3600  # 1 hour in seconds
-
-# Ensure folders exist
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-os.makedirs(app.config['TEMP_FOLDER'], exist_ok=True)
-
-def cleanup_old_files():
-    """Remove files older than MAX_AGE from both temp and upload folders"""
-    current_time = time.time()
-    
-    # Clean temp folder
-    temp_files = glob.glob(os.path.join(app.config['TEMP_FOLDER'], '*'))
-    for file_path in temp_files:
-        if os.path.getmtime(file_path) < current_time - app.config['MAX_AGE']:
-            try:
-                os.remove(file_path)
-            except Exception as e:
-                print(f"Error deleting temp file {file_path}: {e}")
-    
-    # Clean upload folder (except for the current output files)
-    upload_files = glob.glob(os.path.join(app.config['UPLOAD_FOLDER'], '*'))
-    for file_path in upload_files:
-        if os.path.getmtime(file_path) < current_time - app.config['MAX_AGE']:
-            try:
-                os.remove(file_path)
-            except Exception as e:
-                print(f"Error deleting upload file {file_path}: {e}")
-
-def save_temp_file(file, prefix=''):
-    """Save a file to temp folder with unique name"""
-    timestamp = int(time.time())
-    filename = f"{prefix}_{timestamp}_{secure_filename(file.filename)}"
-    filepath = os.path.join(app.config['TEMP_FOLDER'], filename)
-    file.save(filepath)
-    return filepath
-
-def cleanup_output_file(filepath):
-    """Schedule output file for cleanup"""
-    try:
-        # Set the file's modification time to MAX_AGE seconds ago
-        # This will make it eligible for cleanup in the next cleanup cycle
-        os.utime(filepath, (time.time() - app.config['MAX_AGE'], time.time() - app.config['MAX_AGE']))
-    except Exception as e:
-        print(f"Error scheduling cleanup for {filepath}: {e}")
 
 @app.route('/')
 def index():
@@ -76,32 +28,24 @@ def encode_text():
         if not image.filename.lower().endswith('.png'):
             return jsonify({'success': False, 'error': 'Only PNG images are supported'})
         
-        # Clean up old files
-        cleanup_old_files()
+        # Process image in memory
+        image_data = image.read()
+        image_io = BytesIO(image_data)
         
-        # Save the uploaded image temporarily
-        image_path = save_temp_file(image, 'input')
-        
-        # Generate output filename
-        output_filename = 'encoded_image.png'
-        output_path = os.path.join(app.config['UPLOAD_FOLDER'], output_filename)
+        # Create output buffer
+        output_io = BytesIO()
         
         # Encode the text
-        success = encodeText(image_path, text, output_path, password)
-        
-        # Clean up temp file
-        try:
-            os.remove(image_path)
-        except:
-            pass
+        success = encodeText(image_io, text, output_io, password)
         
         if success:
-            # Schedule the output file for cleanup
-            cleanup_output_file(output_path)
-            return jsonify({
-                'success': True,
-                'output_file': output_filename
-            })
+            output_io.seek(0)
+            return send_file(
+                output_io,
+                mimetype='image/png',
+                as_attachment=True,
+                download_name='encoded_image.png'
+            )
         else:
             return jsonify({'success': False, 'error': 'Failed to encode text'})
             
@@ -123,20 +67,12 @@ def decode_text():
         if not image.filename.lower().endswith('.png'):
             return jsonify({'success': False, 'error': 'Only PNG images are supported'})
         
-        # Clean up old files
-        cleanup_old_files()
-        
-        # Save the uploaded image temporarily
-        image_path = save_temp_file(image, 'input')
+        # Process image in memory
+        image_data = image.read()
+        image_io = BytesIO(image_data)
         
         # Decode the text
-        text = decodeText(image_path, password)
-        
-        # Clean up temp file
-        try:
-            os.remove(image_path)
-        except:
-            pass
+        text = decodeText(image_io, password)
         
         if text is not None:
             return jsonify({
@@ -165,34 +101,26 @@ def encode_image():
         if not original.filename.lower().endswith('.png') or not hidden.filename.lower().endswith('.png'):
             return jsonify({'success': False, 'error': 'Only PNG images are supported'})
         
-        # Clean up old files
-        cleanup_old_files()
+        # Process images in memory
+        original_data = original.read()
+        hidden_data = hidden.read()
+        original_io = BytesIO(original_data)
+        hidden_io = BytesIO(hidden_data)
         
-        # Save the uploaded images temporarily
-        original_path = save_temp_file(original, 'original')
-        hidden_path = save_temp_file(hidden, 'hidden')
-        
-        # Generate output filename
-        output_filename = 'encoded_image.png'
-        output_path = os.path.join(app.config['UPLOAD_FOLDER'], output_filename)
+        # Create output buffer
+        output_io = BytesIO()
         
         # Encode the image
-        success = encodeImage(original_path, hidden_path, output_path, password)
-        
-        # Clean up temp files
-        try:
-            os.remove(original_path)
-            os.remove(hidden_path)
-        except:
-            pass
+        success = encodeImage(original_io, hidden_io, output_io, password)
         
         if success:
-            # Schedule the output file for cleanup
-            cleanup_output_file(output_path)
-            return jsonify({
-                'success': True,
-                'output_file': output_filename
-            })
+            output_io.seek(0)
+            return send_file(
+                output_io,
+                mimetype='image/png',
+                as_attachment=True,
+                download_name='encoded_image.png'
+            )
         else:
             return jsonify({'success': False, 'error': 'Failed to encode image'})
             
@@ -214,32 +142,24 @@ def decode_image():
         if not image.filename.lower().endswith('.png'):
             return jsonify({'success': False, 'error': 'Only PNG images are supported'})
         
-        # Clean up old files
-        cleanup_old_files()
+        # Process image in memory
+        image_data = image.read()
+        image_io = BytesIO(image_data)
         
-        # Save the uploaded image temporarily
-        image_path = save_temp_file(image, 'input')
-        
-        # Generate output filename
-        output_filename = 'decoded_image.png'
-        output_path = os.path.join(app.config['UPLOAD_FOLDER'], output_filename)
+        # Create output buffer
+        output_io = BytesIO()
         
         # Decode the image
-        success = decodeImage(image_path, output_path, password)
-        
-        # Clean up temp file
-        try:
-            os.remove(image_path)
-        except:
-            pass
+        success = decodeImage(image_io, output_io, password)
         
         if success:
-            # Schedule the output file for cleanup
-            cleanup_output_file(output_path)
-            return jsonify({
-                'success': True,
-                'output_file': output_filename
-            })
+            output_io.seek(0)
+            return send_file(
+                output_io,
+                mimetype='image/png',
+                as_attachment=True,
+                download_name='decoded_image.png'
+            )
         else:
             return jsonify({'success': False, 'error': 'Failed to decode image'})
             
@@ -247,5 +167,4 @@ def decode_image():
         return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':
-    app.run(debug=True) 
     app.run(debug=True) 
