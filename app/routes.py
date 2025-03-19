@@ -7,7 +7,7 @@ from app.utils.constants import defaultPassword
 bp = Blueprint('main', __name__)
 
 UPLOAD_FOLDER = 'app/static/uploads'
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+ALLOWED_EXTENSIONS = {'png'}
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS

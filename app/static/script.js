@@ -27,6 +27,14 @@ document.addEventListener('DOMContentLoaded', function() {
         return `${fileUrl}?t=${timestamp}`;
     }
 
+    // Helper function to reset form
+    function resetForm(formId) {
+        const form = document.getElementById(formId);
+        if (form) {
+            form.reset();
+        }
+    }
+
     // Text Encoding
     const textEncodeForm = document.getElementById('textEncodeForm');
     const textEncodeResult = document.getElementById('textEncodeResult');
@@ -58,6 +66,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <img src="${imageUrl}" class="result-image" alt="Encoded image">
                     ${createDownloadButton('/static/uploads/' + data.output_file, 'encoded_image.png')}
                 `;
+                resetForm('textEncodeForm'); // Reset form after success
             } else {
                 textEncodeResult.innerHTML = `
                     <div class="alert alert-danger">
@@ -103,6 +112,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         Decoded text: ${data.text}
                     </div>
                 `;
+                resetForm('textDecodeForm'); // Reset form after success
             } else {
                 textDecodeResult.innerHTML = `
                     <div class="alert alert-danger">
@@ -152,6 +162,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <img src="${imageUrl}" class="result-image" alt="Encoded image">
                     ${createDownloadButton('/static/uploads/' + data.output_file, 'encoded_image.png')}
                 `;
+                resetForm('imageEncodeForm'); // Reset form after success
             } else {
                 imageEncodeResult.innerHTML = `
                     <div class="alert alert-danger">
@@ -200,6 +211,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <img src="${imageUrl}" class="result-image" alt="Decoded image">
                     ${createDownloadButton('/static/uploads/' + data.output_file, 'decoded_image.png')}
                 `;
+                resetForm('imageDecodeForm'); // Reset form after success
             } else {
                 imageDecodeResult.innerHTML = `
                     <div class="alert alert-danger">
