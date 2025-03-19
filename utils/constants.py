@@ -1,2 +1,0 @@
-stopCode = "#END#"
-defaultPassword = "Samurott"

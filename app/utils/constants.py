@@ -1,0 +1,2 @@
+stopCode = "#END#"
+defaultPassword = "Samurott"
